@@ -1,12 +1,16 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import pytz
 import os
+
+# ================= CONFIG =================
 
 ARCHIVO_REGISTROS = "registros_guantes.csv"
 ARCHIVO_EMPLEADOS = "empleados.csv"
+CODIGO_MAESTRO = "ADMIN123"  # CAMBIA ESTO
 
-CODIGO_MAESTRO = "ADMIN123"  # CAMBIA ESTE CODIGO
+ZONA_EC = pytz.timezone("America/Guayaquil")
 
 st.set_page_config(
     page_title="Control de Guantes - PROCONGELADOS",
@@ -16,6 +20,11 @@ st.set_page_config(
 st.title("🧤 Sistema Control de Guantes - PROCONGELADOS")
 
 # ================= FUNCIONES =================
+
+def fecha_hora_ecuador():
+    ahora = datetime.now(ZONA_EC)
+    return ahora.strftime("%d/%m/%Y"), ahora.strftime("%H:%M:%S")
+
 
 def cargar_empleados():
     if os.path.exists(ARCHIVO_EMPLEADOS):
@@ -82,6 +91,10 @@ tab_objs = st.tabs(tabs)
 
 with tab_objs[0]:
 
+    fecha_ec, hora_ec = fecha_hora_ecuador()
+
+    st.info(f"Fecha Ecuador: {fecha_ec} | Hora Ecuador: {hora_ec}")
+
     if len(df_empleados) == 0:
         st.warning("Primero cargue empleados")
     else:
@@ -92,7 +105,6 @@ with tab_objs[0]:
             df_empleados["Nombre"]==empleado
         ]["Cargo"].values[0]
 
-        fecha = st.date_input("Fecha", datetime.now())
         observacion = st.text_input("Observación")
 
         entrego = st.selectbox("¿Entregó guantes anteriores?",["Sí","No"])
@@ -101,7 +113,6 @@ with tab_objs[0]:
         if entrego=="No":
             motivo = st.text_input("Motivo obligatorio")
 
-        # SOLO AUTORIZADOS
         autorizados = df_empleados[
             df_empleados["PuedeEntregar"]==True
         ]["Nombre"]
@@ -127,8 +138,8 @@ with tab_objs[0]:
                     nueva = {
                         "Empleado":empleado,
                         "Cargo":cargo,
-                        "Fecha":fecha.strftime("%d/%m/%Y"),
-                        "Hora":datetime.now().strftime("%H:%M:%S"),
+                        "Fecha":fecha_ec,
+                        "Hora":hora_ec,
                         "Observación":observacion,
                         "Entregó":entrego,
                         "Motivo":motivo,
@@ -146,7 +157,7 @@ with tab_objs[0]:
                     st.rerun()
 
 # =========================================================
-# ================= CARGAR EMPLEADOS ======================
+# ================= ADMINISTRACIÓN ========================
 # =========================================================
 
 if st.session_state.admin:
@@ -166,14 +177,11 @@ if st.session_state.admin:
             else:
                 df_excel["Codigo"] = ""
                 df_excel["PuedeEntregar"] = False
-
                 guardar_empleados(df_excel)
                 st.success("Empleados cargados correctamente")
                 st.rerun()
 
         if len(df_empleados) > 0:
-
-            st.markdown("### Configurar Permisos")
 
             empleado_sel = st.selectbox("Empleado", df_empleados["Nombre"])
 
