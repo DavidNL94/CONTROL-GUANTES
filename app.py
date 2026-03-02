@@ -3,13 +3,10 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# ================= CONFIG =================
-
 ARCHIVO_REGISTROS = "registros_guantes.csv"
 ARCHIVO_EMPLEADOS = "empleados.csv"
 
-# 🔐 TU CODIGO MAESTRO (CAMBIALO)
-CODIGO_MAESTRO = "ADMIN123"
+CODIGO_MAESTRO = "ADMIN123"  # CAMBIA ESTE CODIGO
 
 st.set_page_config(
     page_title="Control de Guantes - PROCONGELADOS",
@@ -20,6 +17,27 @@ st.title("🧤 Sistema Control de Guantes - PROCONGELADOS")
 
 # ================= FUNCIONES =================
 
+def cargar_empleados():
+    if os.path.exists(ARCHIVO_EMPLEADOS):
+        df = pd.read_csv(ARCHIVO_EMPLEADOS)
+
+        if "Codigo" not in df.columns:
+            df["Codigo"] = ""
+
+        if "PuedeEntregar" not in df.columns:
+            df["PuedeEntregar"] = False
+
+        df["PuedeEntregar"] = df["PuedeEntregar"].fillna(False)
+
+        return df
+
+    return pd.DataFrame(columns=["Nombre","Cargo","Codigo","PuedeEntregar"])
+
+
+def guardar_empleados(df):
+    df.to_csv(ARCHIVO_EMPLEADOS, index=False)
+
+
 def cargar_registros():
     if os.path.exists(ARCHIVO_REGISTROS):
         return pd.read_csv(ARCHIVO_REGISTROS)
@@ -28,21 +46,13 @@ def cargar_registros():
         "Observación","Entregó","Motivo","Entregado Por"
     ])
 
-def cargar_empleados():
-    if os.path.exists(ARCHIVO_EMPLEADOS):
-        return pd.read_csv(ARCHIVO_EMPLEADOS)
-    return pd.DataFrame(columns=[
-        "Nombre","Cargo","Codigo","PuedeEntregar"
-    ])
-
-def guardar_empleados(df):
-    df.to_csv(ARCHIVO_EMPLEADOS, index=False)
 
 def guardar_registros(df):
     df.to_csv(ARCHIVO_REGISTROS, index=False)
 
-df_registros = cargar_registros()
+
 df_empleados = cargar_empleados()
+df_registros = cargar_registros()
 
 if "admin" not in st.session_state:
     st.session_state.admin = False
@@ -51,9 +61,9 @@ if "admin" not in st.session_state:
 
 with st.sidebar:
     st.markdown("### 🔐 Acceso Maestro")
-    codigo = st.text_input("Código Maestro", type="password")
+    codigo_admin = st.text_input("Código Maestro", type="password")
 
-    if codigo == CODIGO_MAESTRO:
+    if codigo_admin == CODIGO_MAESTRO:
         st.session_state.admin = True
         st.success("Modo administrador activado")
 
@@ -64,21 +74,23 @@ tabs = ["Nueva Solicitud","Reportes","Historial"]
 if st.session_state.admin:
     tabs.append("Administración")
 
-tab_objects = st.tabs(tabs)
+tab_objs = st.tabs(tabs)
 
 # =========================================================
 # ================= NUEVA SOLICITUD =======================
 # =========================================================
 
-with tab_objects[0]:
+with tab_objs[0]:
 
     if len(df_empleados) == 0:
-        st.warning("No hay empleados cargados")
+        st.warning("Primero cargue empleados")
     else:
 
         empleado = st.selectbox("Empleado que solicita", df_empleados["Nombre"])
 
-        cargo = df_empleados[df_empleados["Nombre"]==empleado]["Cargo"].values[0]
+        cargo = df_empleados[
+            df_empleados["Nombre"]==empleado
+        ]["Cargo"].values[0]
 
         fecha = st.date_input("Fecha", datetime.now())
         observacion = st.text_input("Observación")
@@ -87,87 +99,109 @@ with tab_objects[0]:
 
         motivo=""
         if entrego=="No":
-            motivo=st.text_input("Motivo obligatorio")
+            motivo = st.text_input("Motivo obligatorio")
 
-        # SOLO LOS AUTORIZADOS
-        entregadores = df_empleados[df_empleados["PuedeEntregar"]==True]["Nombre"]
+        # SOLO AUTORIZADOS
+        autorizados = df_empleados[
+            df_empleados["PuedeEntregar"]==True
+        ]["Nombre"]
 
-        entregado_por = st.selectbox("Entrega", entregadores)
+        entregado_por = st.selectbox("Operador que entrega", autorizados)
 
         codigo_operador = st.text_input("Código del operador", type="password")
 
-        if st.button("Registrar"):
+        if st.button("Registrar Solicitud"):
 
-            codigo_real = df_empleados[
-                df_empleados["Nombre"]==entregado_por
-            ]["Codigo"].values[0]
-
-            if codigo_operador != str(codigo_real):
-                st.error("Código incorrecto")
+            if entrego=="No" and not motivo:
+                st.warning("Debe escribir motivo")
+            elif not codigo_operador:
+                st.warning("Debe ingresar código")
             else:
-                nueva = {
-                    "Empleado":empleado,
-                    "Cargo":cargo,
-                    "Fecha":fecha.strftime("%d/%m/%Y"),
-                    "Hora":datetime.now().strftime("%H:%M:%S"),
-                    "Observación":observacion,
-                    "Entregó":entrego,
-                    "Motivo":motivo,
-                    "Entregado Por":entregado_por
-                }
+                codigo_real = df_empleados[
+                    df_empleados["Nombre"]==entregado_por
+                ]["Codigo"].values[0]
 
-                df_registros = pd.concat([df_registros,pd.DataFrame([nueva])])
-                guardar_registros(df_registros)
+                if str(codigo_operador) != str(codigo_real):
+                    st.error("Código incorrecto")
+                else:
+                    nueva = {
+                        "Empleado":empleado,
+                        "Cargo":cargo,
+                        "Fecha":fecha.strftime("%d/%m/%Y"),
+                        "Hora":datetime.now().strftime("%H:%M:%S"),
+                        "Observación":observacion,
+                        "Entregó":entrego,
+                        "Motivo":motivo,
+                        "Entregado Por":entregado_por
+                    }
 
-                st.success("Solicitud registrada correctamente")
+                    df_registros = pd.concat(
+                        [df_registros,pd.DataFrame([nueva])],
+                        ignore_index=True
+                    )
+
+                    guardar_registros(df_registros)
+
+                    st.success("Solicitud registrada correctamente")
+                    st.rerun()
+
+# =========================================================
+# ================= CARGAR EMPLEADOS ======================
+# =========================================================
+
+if st.session_state.admin:
+
+    with tab_objs[-1]:
+
+        st.subheader("Panel Administración")
+
+        archivo_excel = st.file_uploader("Cargar Excel Empleados (.xlsx)", type=["xlsx"])
+
+        if archivo_excel is not None:
+            df_excel = pd.read_excel(archivo_excel, engine="openpyxl")
+            df_excel.columns = df_excel.columns.str.strip()
+
+            if not all(col in df_excel.columns for col in ["Nombre","Cargo"]):
+                st.error("El Excel debe tener: Nombre y Cargo")
+            else:
+                df_excel["Codigo"] = ""
+                df_excel["PuedeEntregar"] = False
+
+                guardar_empleados(df_excel)
+                st.success("Empleados cargados correctamente")
+                st.rerun()
+
+        if len(df_empleados) > 0:
+
+            st.markdown("### Configurar Permisos")
+
+            empleado_sel = st.selectbox("Empleado", df_empleados["Nombre"])
+
+            nuevo_codigo = st.text_input("Asignar Código Único")
+
+            puede = st.checkbox("Puede entregar guantes")
+
+            if st.button("Guardar Cambios"):
+
+                df_empleados.loc[
+                    df_empleados["Nombre"]==empleado_sel,"Codigo"
+                ] = nuevo_codigo
+
+                df_empleados.loc[
+                    df_empleados["Nombre"]==empleado_sel,"PuedeEntregar"
+                ] = puede
+
+                guardar_empleados(df_empleados)
+
+                st.success("Empleado actualizado")
                 st.rerun()
 
 # =========================================================
 # ================= REPORTES ==============================
 # =========================================================
 
-with tab_objects[1]:
-
+with tab_objs[1]:
     st.dataframe(df_registros)
 
-# =========================================================
-# ================= HISTORIAL =============================
-# =========================================================
-
-with tab_objects[2]:
-
+with tab_objs[2]:
     st.dataframe(df_registros)
-
-# =========================================================
-# ================= ADMINISTRACIÓN ========================
-# =========================================================
-
-if st.session_state.admin:
-
-    with tab_objects[3]:
-
-        st.subheader("Panel de Administración")
-
-        st.dataframe(df_empleados)
-
-        st.markdown("### Modificar empleado")
-
-        empleado_sel = st.selectbox("Empleado", df_empleados["Nombre"])
-
-        nuevo_codigo = st.text_input("Nuevo Código")
-        puede_entregar = st.checkbox("Puede Entregar Guantes")
-
-        if st.button("Guardar Cambios"):
-
-            df_empleados.loc[
-                df_empleados["Nombre"]==empleado_sel,"Codigo"
-            ] = nuevo_codigo
-
-            df_empleados.loc[
-                df_empleados["Nombre"]==empleado_sel,"PuedeEntregar"
-            ] = puede_entregar
-
-            guardar_empleados(df_empleados)
-
-            st.success("Empleado actualizado")
-            st.rerun()
