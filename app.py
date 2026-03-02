@@ -3,7 +3,12 @@ import pandas as pd
 from datetime import datetime
 import os
 
-ARCHIVO = "registros_guantes.csv"
+# ================= ARCHIVOS =================
+
+ARCHIVO_REGISTROS = "registros_guantes.csv"
+ARCHIVO_EMPLEADOS = "empleados.csv"
+
+# ================= CONFIG =================
 
 st.set_page_config(
     page_title="Control de Guantes - PROCONGELADOS",
@@ -12,46 +17,60 @@ st.set_page_config(
 
 st.title("🧤 Sistema Control de Guantes - PROCONGELADOS")
 
-COLUMNAS = [
+COLUMNAS_REGISTROS = [
     "Empleado", "Cargo", "Fecha",
     "Hora", "Observación",
     "Entregó", "Motivo"
 ]
 
-# ================= CARGAR DATOS =================
+# ================= FUNCIONES =================
 
-def cargar_datos():
-    if os.path.exists(ARCHIVO):
+def cargar_registros():
+    if os.path.exists(ARCHIVO_REGISTROS):
         try:
-            df = pd.read_csv(ARCHIVO, engine="python")
-            for col in COLUMNAS:
+            df = pd.read_csv(ARCHIVO_REGISTROS, engine="python")
+            for col in COLUMNAS_REGISTROS:
                 if col not in df.columns:
                     df[col] = ""
-            return df[COLUMNAS]
+            return df[COLUMNAS_REGISTROS]
         except:
-            return pd.DataFrame(columns=COLUMNAS)
+            return pd.DataFrame(columns=COLUMNAS_REGISTROS)
     else:
-        return pd.DataFrame(columns=COLUMNAS)
+        return pd.DataFrame(columns=COLUMNAS_REGISTROS)
 
-df = cargar_datos()
 
-# ================= SESSION EMPLEADOS =================
+def cargar_empleados():
+    if os.path.exists(ARCHIVO_EMPLEADOS):
+        return pd.read_csv(ARCHIVO_EMPLEADOS)
+    else:
+        return pd.DataFrame(columns=["Nombre", "Cargo"])
 
-if "empleados" not in st.session_state:
-    st.session_state.empleados = pd.DataFrame(columns=["Nombre", "Cargo"])
+
+def guardar_empleados(df_emp):
+    df_emp.to_csv(ARCHIVO_EMPLEADOS, index=False)
+
+
+def guardar_registros(df_reg):
+    df_reg.to_csv(ARCHIVO_REGISTROS, index=False)
+
+
+# ================= CARGA INICIAL =================
+
+df_registros = cargar_registros()
+df_empleados = cargar_empleados()
 
 if "mensaje_exito" not in st.session_state:
     st.session_state.mensaje_exito = False
 
-# ================= CREAR PESTAÑAS FIJAS =================
+# ================= PESTAÑAS =================
 
 tab1, tab2, tab3, tab4 = st.tabs(
     ["Nueva Solicitud", "Cargar Empleados", "Reportes", "Historial"]
 )
 
-# =====================================================
-# ================= NUEVA SOLICITUD ===================
-# =====================================================
+# =========================================================
+# ================= NUEVA SOLICITUD =======================
+# =========================================================
 
 with tab1:
 
@@ -61,16 +80,16 @@ with tab1:
         st.success("✅ Nueva solicitud registrada con éxito")
         st.session_state.mensaje_exito = False
 
-    if len(st.session_state.empleados) == 0:
-        st.warning("Primero debe cargar empleados desde Excel")
+    if len(df_empleados) == 0:
+        st.warning("Debe cargar empleados primero")
     else:
 
-        lista_empleados = st.session_state.empleados["Nombre"].tolist()
+        lista_empleados = df_empleados["Nombre"].tolist()
 
         empleado = st.selectbox("Empleado", lista_empleados)
 
-        cargo = st.session_state.empleados[
-            st.session_state.empleados["Nombre"] == empleado
+        cargo = df_empleados[
+            df_empleados["Nombre"] == empleado
         ]["Cargo"].values[0]
 
         fecha = st.date_input("Fecha", datetime.now())
@@ -82,7 +101,6 @@ with tab1:
         )
 
         motivo = ""
-
         if entrego == "No":
             motivo = st.text_input("⚠ Motivo de no entrega (obligatorio)")
 
@@ -105,19 +123,19 @@ with tab1:
                     "Motivo": motivo
                 }
 
-                df_nuevo = pd.concat(
-                    [df, pd.DataFrame([nueva_fila])],
+                df_registros = pd.concat(
+                    [df_registros, pd.DataFrame([nueva_fila])],
                     ignore_index=True
                 )
 
-                df_nuevo.to_csv(ARCHIVO, index=False)
+                guardar_registros(df_registros)
 
                 st.session_state.mensaje_exito = True
                 st.rerun()
 
-# =====================================================
-# ================= CARGAR EMPLEADOS ==================
-# =====================================================
+# =========================================================
+# ================= CARGAR EMPLEADOS ======================
+# =========================================================
 
 with tab2:
 
@@ -130,29 +148,36 @@ with tab2:
 
     if archivo_excel is not None:
         try:
-            df_empleados = pd.read_excel(archivo_excel)
+            df_excel = pd.read_excel(archivo_excel, engine="openpyxl")
+            df_excel.columns = df_excel.columns.str.strip()
 
-            if "Nombre" not in df_empleados.columns or "Cargo" not in df_empleados.columns:
+            if "Nombre" not in df_excel.columns or "Cargo" not in df_excel.columns:
                 st.error("El archivo debe tener columnas: Nombre y Cargo")
             else:
-                st.session_state.empleados = df_empleados[["Nombre", "Cargo"]]
-                st.success("Empleados cargados correctamente")
-                st.dataframe(st.session_state.empleados)
+                df_empleados = df_excel[["Nombre", "Cargo"]]
+                guardar_empleados(df_empleados)
+                st.success("Empleados guardados permanentemente")
+                st.dataframe(df_empleados)
 
         except:
             st.error("Error al leer el archivo Excel")
 
-# =====================================================
-# ================= REPORTES ==========================
-# =====================================================
+    if len(df_empleados) > 0:
+        st.markdown("### Empleados actuales")
+        st.dataframe(df_empleados)
+
+# =========================================================
+# ================= REPORTES ==============================
+# =========================================================
 
 with tab3:
 
     st.subheader("📊 Reportes por Rango de Fecha")
 
-    if len(df) == 0:
+    if len(df_registros) == 0:
         st.warning("No hay registros")
     else:
+
         col1, col2 = st.columns(2)
 
         with col1:
@@ -163,15 +188,15 @@ with tab3:
 
         if st.button("Generar Reporte"):
 
-            df["Fecha_dt"] = pd.to_datetime(
-                df["Fecha"],
+            df_registros["Fecha_dt"] = pd.to_datetime(
+                df_registros["Fecha"],
                 format="%d/%m/%Y",
                 errors="coerce"
             )
 
-            filtro = df[
-                (df["Fecha_dt"] >= pd.to_datetime(desde)) &
-                (df["Fecha_dt"] <= pd.to_datetime(hasta))
+            filtro = df_registros[
+                (df_registros["Fecha_dt"] >= pd.to_datetime(desde)) &
+                (df_registros["Fecha_dt"] <= pd.to_datetime(hasta))
             ]
 
             resumen = (
@@ -184,20 +209,20 @@ with tab3:
             st.write("### Total cambios en rango:", len(filtro))
             st.dataframe(resumen, use_container_width=True)
 
-# =====================================================
-# ================= HISTORIAL =========================
-# =====================================================
+# =========================================================
+# ================= HISTORIAL =============================
+# =========================================================
 
 with tab4:
 
     st.subheader("📋 Historial Completo")
 
-    if len(df) == 0:
+    if len(df_registros) == 0:
         st.info("No hay registros aún")
     else:
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df_registros, use_container_width=True)
 
-        csv = df.to_csv(index=False).encode("utf-8")
+        csv = df_registros.to_csv(index=False).encode("utf-8")
 
         st.download_button(
             label="📥 Descargar Historial CSV",
