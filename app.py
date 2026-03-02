@@ -93,7 +93,7 @@ with tab_objs[0]:
 
     fecha_ec, hora_ec = fecha_hora_ecuador()
 
-    st.info(f"Fecha Ecuador: {fecha_ec} | Hora Ecuador: {hora_ec}")
+    st.info(f"📅 Fecha Ecuador: {fecha_ec} | ⏰ Hora Ecuador: {hora_ec}")
 
     if len(df_empleados) == 0:
         st.warning("Primero cargue empleados")
@@ -133,7 +133,7 @@ with tab_objs[0]:
                 ]["Codigo"].values[0]
 
                 if str(codigo_operador) != str(codigo_real):
-                    st.error("Código incorrecto")
+                    st.error("❌ Código incorrecto")
                 else:
                     nueva = {
                         "Empleado":empleado,
@@ -153,8 +153,18 @@ with tab_objs[0]:
 
                     guardar_registros(df_registros)
 
-                    st.success("Solicitud registrada correctamente")
-                    st.rerun()
+                    # 🎉 MENSAJE DE CONFIRMACIÓN
+                    st.success("✅ SOLICITUD CREADA CORRECTAMENTE")
+
+                    st.markdown(f"""
+                    ### 📋 Detalle del Registro
+                    - 👤 Empleado: **{empleado}**
+                    - 📅 Fecha: **{fecha_ec}**
+                    - ⏰ Hora: **{hora_ec}**
+                    - 🧤 Entregado por: **{entregado_por}**
+                    """)
+
+                    st.balloons()
 
 # =========================================================
 # ================= ADMINISTRACIÓN ========================
@@ -201,7 +211,7 @@ if st.session_state.admin:
 
                 guardar_empleados(df_empleados)
 
-                st.success("Empleado actualizado")
+                st.success("Empleado actualizado correctamente")
                 st.rerun()
 
 # =========================================================
@@ -209,7 +219,9 @@ if st.session_state.admin:
 # =========================================================
 
 with tab_objs[1]:
+    st.subheader("Reportes")
     st.dataframe(df_registros)
 
 with tab_objs[2]:
+    st.subheader("Historial Completo")
     st.dataframe(df_registros)
